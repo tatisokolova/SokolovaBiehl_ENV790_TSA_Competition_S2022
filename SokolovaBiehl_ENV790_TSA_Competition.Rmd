@@ -14,7 +14,7 @@ editor_options:
 knitr::opts_chunk$set(echo = TRUE,tidy.opts=list(width.cutoff=80), tidy=FALSE)
 ```
 
-```{r load-packages}
+```{r package, message=FALSE, warning=FALSE}
 library(lubridate)
 library(ggplot2)
 library(forecast)  
@@ -55,8 +55,6 @@ ts_DailyAvgLoad <- msts(DailyAvgLoad$Load,
 
 ts_DailyAvgLoad %>% mstl() %>%
   autoplot()
-
-
 
 ```
 
