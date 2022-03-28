@@ -1,0 +1,75 @@
+---
+title: "Sokolova, Biehl TSA Competition"
+author: "Tatiana Sokolova, Kevin Biehl"
+date: "4/13/2022"
+output: pdf_document
+always_allow_html: true
+editor_options: 
+  chunk_output_type: console
+  markdown: 
+    wrap: sentence
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,tidy.opts=list(width.cutoff=80), tidy=FALSE)
+```
+
+```{r load-packages}
+library(lubridate)
+library(ggplot2)
+library(forecast)  
+library(Kendall)
+library(tseries)
+library(outliers)
+library(tidyverse)
+library(smooth)
+library(zoo)
+library(kableExtra)
+library(readxl)
+```
+
+
+```{r}
+#Importing data
+load <- read_excel("./Data/load.xlsx")
+
+
+DailyAvgLoad <- rowMeans(load[,3:26])
+
+DailyAvgLoad <- data.frame(load$date,DailyAvgLoad)
+colnames(DailyAvgLoad) <- c("Date","Load")
+DailyAvgLoad$Date <- ymd(DailyAvgLoad$Date)
+
+ggplot(DailyAvgLoad, aes(x=Date,y=Load)) +
+  geom_line() +
+  ylab("Average Daily Load")
+
+summary(DailyAvgLoad$Load)
+
+```
+```{r message=FALSE, warning=FALSE}
+#Make time series
+ts_DailyAvgLoad <- msts(DailyAvgLoad$Load, 
+                           seasonal.periods =c(7,365.25),
+                           start=c(2005,1,1))
+
+ts_DailyAvgLoad %>% mstl() %>%
+  autoplot()
+
+
+
+```
+
+```{r message=FALSE, warning=FALSE}
+#create a subset for training purpose
+n_forecast = 365
+ts_DailyAvgLoad_train <- subset(ts_DailyAvgLoad,
+                                   end = length(ts_DailyAvgLoad)-n_forecast)
+
+#create a subset for testing purpose
+ts_DailyAvgLoad_test <- subset(ts_DailyAvgLoad,
+                                   start = length(ts_DailyAvgLoad)-n_forecast)
+
+autoplot(ts_DailyAvgLoad_train)
+autoplot(ts_DailyAvgLoad_test)
+```
