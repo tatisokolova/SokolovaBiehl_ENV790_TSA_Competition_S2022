@@ -212,7 +212,7 @@ autoplot(ts_DailyAvgLoad) +
 #Forecasting Daily Demand for January 2011
 
 Since TBATS was determined to be the best model:
-```{r TBATS, echo=TRUE, message=FALSE, warning=FALSE}
+```{r 2011, echo=TRUE, message=FALSE, warning=FALSE}
 TBATS11_fit <- tbats(ts_DailyAvgLoad)
 
 TBATS11_for <- forecast::forecast(TBATS11_fit, h=31)
@@ -226,5 +226,5 @@ autoplot(ts_DailyAvgLoad) +
   autolayer(TBATS11_for, series="TBATS",PI=FALSE)+
   ylab("Average Load") 
 
-write.csv(TBATS11_for, file="./Outputs/TBATS_forecast.csv")
+#write.csv(TBATS11_for, file="./Outputs/TBATS_forecast.csv")
 ```
