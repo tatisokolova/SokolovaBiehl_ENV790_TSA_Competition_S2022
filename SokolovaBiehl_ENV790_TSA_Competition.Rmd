@@ -2,6 +2,7 @@
 title: "Sokolova, Biehl TSA Competition"
 author: "Tatiana Sokolova, Kevin Biehl"
 date: "4/13/2022"
+github repo: "https://github.com/tatisokolova/SokolovaBiehl_ENV790_TSA_Competition_S2022"
 output: pdf_document
 always_allow_html: true
 editor_options: 
@@ -137,7 +138,7 @@ autoplot(ts_DailyAvgLoad) +
 
 ```
 
-#Forecasting using Neural Network Time Series (Model 4)
+#Forecasting using Neural Network Time Series, p=1,P=0 (Model 4)
 
 ```{r NNETAR, echo=TRUE, message=FALSE, warning=FALSE}
 
@@ -217,7 +218,7 @@ autoplot(ts_DailyAvgLoad) +
 #Forecasting Daily Demand for January 2011
 
 Since TBATS was determined to be the best model by RMSE:
-```{r RMSE, echo=TRUE, message=FALSE, warning=FALSE}
+```{r TBATS Jan 2011 Forecast, echo=TRUE, message=FALSE, warning=FALSE}
 TBATS11_fit <- tbats(ts_DailyAvgLoad)
 
 TBATS11_for <- forecast::forecast(TBATS11_fit, h=31)
@@ -231,11 +232,11 @@ autoplot(ts_DailyAvgLoad) +
   autolayer(TBATS11_for, series="TBATS",PI=FALSE)+
   ylab("Average Load") 
 
-write.csv(TBATS11_for, file="./Outputs/TBATS_forecast.csv")
+#write.csv(TBATS11_for, file="./Outputs/TBATS_forecast.csv")
 ```
 
 Since Neural Network was determined to be the best model by MAPE:
-```{r MAPE, echo=TRUE, message=FALSE, warning=FALSE}
+```{r NN Jan 2011 Forecast, echo=TRUE, message=FALSE, warning=FALSE}
 
 
 NN11_fit <- nnetar(ts_DailyAvgLoad,p=1,P=0,xreg=fourier(ts_DailyAvgLoad, K=c(2,12)))
@@ -259,7 +260,6 @@ autoplot(ts_DailyAvgLoad) +
 ```{r ARIMA, echo=TRUE, message=FALSE, warning=FALSE}
 
 autofit_SARIMA <- auto.arima(ts_DailyAvgLoad_train)
-print(autofit_SARIMA)
 
 SARIMA_for <- forecast::forecast(object = autofit_SARIMA, h = n_forecast)
 
@@ -276,7 +276,7 @@ autoplot(ts_DailyAvgLoad) +
 
 Not a great fit, but the results are valuable nonetheless. Since ARIMA(2,0,2) was selected, Will try incorporating P=2 into the neural network.
 
-#Forecasting using Neural Network & P = 2  (Model 6)
+#Forecasting using Neural Network & p = 1, P = 2  (Model 6)
 
 ```{r NN2, echo=TRUE, message=FALSE, warning=FALSE}
 
@@ -297,6 +297,67 @@ autoplot(ts_DailyAvgLoad) +
 ```
 
 
+#Averaging forecast from Neural Network & TBATS (Model 7)
+
+```{r avg NN TBATS}
+
+#Model 7: subset for testing
+TBATS_NN_avg_test <- msts(rowMeans(cbind(TBATS_for$mean,NN_for$mean)),seasonal.periods =c(7,365.25),start=c(2010,1,1))
+
+#Plot foresting results
+autoplot(TBATS_NN_avg_test) +
+  ylab("Average Load") 
+
+#Plot model + observed data
+autoplot(ts_DailyAvgLoad) +
+  autolayer(TBATS_NN_avg_test, series="TBATS NN Avg",PI=FALSE)+
+  ylab("Average Load") 
+
+```
+
+
+#Forecasting using Neural Network & different p=2, P=0  (Model 8)
+
+```{r NNp2P0, echo=TRUE, message=FALSE, warning=FALSE}
+
+NN_fit_p2P0 <- nnetar(ts_DailyAvgLoad_train,p=2,P=0,xreg=fourier(ts_DailyAvgLoad_train, K=c(2,12)))
+
+NN_for_p2P0 <- forecast::forecast(NN_fit_p2P0, h=365,xreg=fourier(ts_DailyAvgLoad_train, 
+                                          K=c(2,12),h=365))
+
+#Plot foresting results
+autoplot(NN_for_p2P0) +
+  ylab("Average Load") 
+
+#Plot model + observed data
+autoplot(ts_DailyAvgLoad) +
+  autolayer(NN_for_p2P0, series="Neural Network p2P0",PI=FALSE)+
+  ylab("Average Load") 
+
+```
+
+#Averaging forecast from Neural Network (p=2,P=0) & TBATS (Model 9)
+
+```{r avg TBATS NNp2P0}
+
+#Model 9: subset for testing
+TBATS_NNp2P0_avg_test <- msts(rowMeans(cbind(TBATS_for$mean,NN_for_p2P0$mean)),seasonal.periods =c(7,365.25),start=c(2010,1,1))
+
+#Plot foresting results
+autoplot(TBATS_NNp2P0_avg_test) +
+  ylab("Average Load") 
+
+#Plot model + observed data
+autoplot(ts_DailyAvgLoad) +
+  autolayer(TBATS_NNp2P0_avg_test, series="TBATS NNp2P0 Avg ",PI=FALSE)+
+  ylab("Average Load") 
+
+```
+
+
+
+# Checking accuracy of the new models 
+
 ```{r accuracy 2}
 # Model 5:  SARIMA
 SARIMA_scores <- accuracy(SARIMA_for$mean,ts_DailyAvgLoad_test)
@@ -305,8 +366,17 @@ SARIMA_scores <- accuracy(SARIMA_for$mean,ts_DailyAvgLoad_test)
 
 NN_P2_scores <- accuracy(NN_for_P2$mean,ts_DailyAvgLoad_test)
 
-scores <-  rbind(scores,SARIMA_scores,NN_P2_scores)
-row.names(scores) <- c("STL+ETS", "ARIMA+Fourier","TBATS","NN","SARIMA","NNP2")
+# Model 7 Average of Neural Network & TBATS
+TBATS_NN_avg_scores <- accuracy(TBATS_NN_avg_test,ts_DailyAvgLoad_test)
+
+# Model 8 Neural Network with p = 0, P = 2
+NN_p2P0_scores <- accuracy(NN_for_p2P0$mean,ts_DailyAvgLoad_test)
+
+# Model 9 Average of Neural Network (p=2,P=0) & TBATS
+TBATS_NNp2P0_avg_scores <- accuracy(TBATS_NNp2P0_avg_test,ts_DailyAvgLoad_test)
+
+scores <-  rbind(ETS_scores, ARIMA_scores, TBATS_scores, NN_scores,SARIMA_scores,NN_P2_scores,TBATS_NN_avg_scores,NN_p2P0_scores,TBATS_NNp2P0_avg_scores)
+row.names(scores) <- c("STL+ETS","ARIMA+Fourier","TBATS","NN","SARIMA","NNP2","NN+TBATS Avg","NNp2P0","NNp2P0+TBATS Avg")
 ```
 
 
@@ -320,24 +390,59 @@ kbl(scores,
   kable_styling(latex_options="striped", stripe_index = which.min(scores[,"RMSE"]))
 ```
 
-As indicated by higher MAPE and RMSE, the Neural Network with P=2 seems to be a worse fit than P=0.
+As indicated by higher MAPE and RMSE, the Neural Network with P=2 seems to be a worse fit than P=0. However, adjusting for non-seasonal lags instead, with p=2, performs better than seasonal lags of P=2. The average of TBATS and NN performs the best by MAPE.
 
-#Averaging forecast from Neural Network & TBATS (Model 7)
+### Creating Jan 2011 forecast using averages of Neural Network & TBATS
 
-```{r avg}
+```{r NN TBats Avg Jan 2011 Forecast, echo=TRUE, message=FALSE, warning=FALSE}
+
 #Create dates vector for forecast period
 forecast_dates <- seq(as.Date("2011-01-01"), as.Date("2011-01-31"), by="days")
 
+
 #Create df of average forecasted TBATS and NN load values
-TBATS_NN_avg_for <- data.frame(cbind(forecast_dates,rowMeans(cbind(TBATS11_for$mean,NN11_for$mean))))
-colnames(TBATS_NN_avg_for) <- c("date","load")
+TBATS11_NN11_avg_for <- data.frame(cbind(forecast_dates,rowMeans(cbind(TBATS11_for$mean,NN11_for$mean))))
+colnames(TBATS11_NN11_avg_for) <- c("date","load")
 
 #format dates
-TBATS_NN_avg_for$date <- seq(as.Date("2011-01-01"), as.Date("2011-01-31"), by="days")
+TBATS11_NN11_avg_for$date <- seq(as.Date("2011-01-01"), as.Date("2011-01-31"), by="days")
 
-#write.csv(TBATS_NN_avg_for, file="./Outputs/TBATS_NN_avg_forecast.csv")
+#write.csv(TBATS11_NN11_avg_for, file="./Outputs/TBATS_NN_avg_forecast.csv")
+```
 
+### Creating Jan 2011 forecast using Neural Network (p=2, P=0)
+
+```{r NN p2P0 Jan 2011 Forecast, echo=TRUE, message=FALSE, warning=FALSE}
+
+
+NN11_p2P0_fit <- nnetar(ts_DailyAvgLoad,p=1,P=0,xreg=fourier(ts_DailyAvgLoad, K=c(2,12)))
+
+NN11_p2P0_for <- forecast::forecast(NN11_fit, h=31,xreg=fourier(ts_DailyAvgLoad, 
+                                          K=c(2,12),h=31))
+
+#Plot foresting results
+autoplot(NN11_p2P0_for) +
+  ylab("Average Load") 
+
+#Plot model + observed data
+autoplot(ts_DailyAvgLoad) +
+  autolayer(NN11_p2P0_for, series="Neural Network p2P0",PI=FALSE)+
+  ylab("Average Load") 
+
+#write.csv(NN11_p2P0_for, file="./Outputs/NN11_p2P0_forecast.csv")
 ```
 
 
+### Creating Jan 2011 forecast using averages TBATS & Neural Network (p = 2, P = 0)
 
+```{r NN p2P0 TBATS Avg Jan 2011 Forecast, echo=TRUE, message=FALSE, warning=FALSE}
+
+#Create df of average forecasted TBATS and NN load values
+TBATS11_NN11_p2P0_avg_for <- data.frame(cbind(forecast_dates,rowMeans(cbind(TBATS11_for$mean,NN11_p2P0_for$mean))))
+colnames(TBATS11_NN11_p2P0_avg_for) <- c("date","load")
+
+#format dates
+TBATS11_NN11_p2P0_avg_for$date <- seq(as.Date("2011-01-01"), as.Date("2011-01-31"), by="days")
+
+#write.csv(TBATS11_NN11_p2P0_avg_for, file="./Outputs/TBATS_NNp2P0_avg_forecast.csv")
+```
