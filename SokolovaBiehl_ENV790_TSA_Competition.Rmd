@@ -93,7 +93,7 @@ autoplot(ts_DailyAvgLoad) +
 ```
 
 #Forecasting using ARIMA + Fourier (Model 2)
-```{r ARIMA, echo=TRUE, message=FALSE, warning=FALSE}
+```{r ARIMA Four, echo=TRUE, message=FALSE, warning=FALSE}
 
 ARIMA_Four_fit <- auto.arima(ts_DailyAvgLoad_train, 
                              seasonal=FALSE, #P,D,Q = 0
@@ -184,8 +184,13 @@ scores <- as.data.frame(
 row.names(scores) <- c("STL+ETS", "ARIMA+Fourier","TBATS","NN")
 
 #choosing model with lowest RMSE
-best_model_index <- which.min(scores[,"RMSE"])
-cat("The best model by RMSE is:", row.names(scores[best_model_index,]))                       
+best_model_index_RMSE <- which.min(scores[,"RMSE"])
+#choosing model with lowest MAPE
+best_model_index_MAPE <- which.min(scores[,"MAPE"])
+
+#printing results
+cat("The best model by RMSE is:", row.names(scores[best_model_index_RMSE,]))
+cat("The best model by MAPE is:", row.names(scores[best_model_index_MAPE,]))
 ```
 
 ```{r table, echo=FALSE, message=FALSE, warning=FALSE}
@@ -211,8 +216,8 @@ autoplot(ts_DailyAvgLoad) +
 
 #Forecasting Daily Demand for January 2011
 
-Since TBATS was determined to be the best model:
-```{r 2011, echo=TRUE, message=FALSE, warning=FALSE}
+Since TBATS was determined to be the best model by RMSE:
+```{r RMSE, echo=TRUE, message=FALSE, warning=FALSE}
 TBATS11_fit <- tbats(ts_DailyAvgLoad)
 
 TBATS11_for <- forecast::forecast(TBATS11_fit, h=31)
@@ -226,5 +231,113 @@ autoplot(ts_DailyAvgLoad) +
   autolayer(TBATS11_for, series="TBATS",PI=FALSE)+
   ylab("Average Load") 
 
-#write.csv(TBATS11_for, file="./Outputs/TBATS_forecast.csv")
+write.csv(TBATS11_for, file="./Outputs/TBATS_forecast.csv")
 ```
+
+Since Neural Network was determined to be the best model by MAPE:
+```{r MAPE, echo=TRUE, message=FALSE, warning=FALSE}
+
+
+NN11_fit <- nnetar(ts_DailyAvgLoad,p=1,P=0,xreg=fourier(ts_DailyAvgLoad, K=c(2,12)))
+
+NN11_for <- forecast::forecast(NN11_fit, h=31,xreg=fourier(ts_DailyAvgLoad, 
+                                          K=c(2,12),h=31))
+
+#Plot foresting results
+autoplot(NN11_for) +
+  ylab("Average Load") 
+
+#Plot model + observed data
+autoplot(ts_DailyAvgLoad) +
+  autolayer(NN11_for, series="Neural Network",PI=FALSE)+
+  ylab("Average Load") 
+
+#write.csv(NN11_for, file="./Outputs/NN_forecast.csv")
+```
+
+#Forecasting using ARIMA (Model 5)
+```{r ARIMA, echo=TRUE, message=FALSE, warning=FALSE}
+
+autofit_SARIMA <- auto.arima(ts_DailyAvgLoad_train)
+print(autofit_SARIMA)
+
+SARIMA_for <- forecast::forecast(object = autofit_SARIMA, h = n_forecast)
+
+#Plot results
+autoplot(SARIMA_for) +
+  ylab("Average Load") 
+
+#Plot model + observed data
+autoplot(ts_DailyAvgLoad) +
+  autolayer(SARIMA_for, series="SARIMA",PI=FALSE)+
+  ylab("Average Load") 
+
+```
+
+Not a great fit, but the results are valuable nonetheless. Since ARIMA(2,0,2) was selected, Will try incorporating P=2 into the neural network.
+
+#Forecasting using Neural Network & P = 2  (Model 6)
+
+```{r NN2, echo=TRUE, message=FALSE, warning=FALSE}
+
+NN_fit_P2 <- nnetar(ts_DailyAvgLoad_train,p=1,P=2,xreg=fourier(ts_DailyAvgLoad_train, K=c(2,12)))
+
+NN_for_P2 <- forecast::forecast(NN_fit_P2, h=365,xreg=fourier(ts_DailyAvgLoad_train, 
+                                          K=c(2,12),h=365))
+
+#Plot foresting results
+autoplot(NN_for_P2) +
+  ylab("Average Load") 
+
+#Plot model + observed data
+autoplot(ts_DailyAvgLoad) +
+  autolayer(NN_for_P2, series="Neural Network",PI=FALSE)+
+  ylab("Average Load") 
+
+```
+
+
+```{r accuracy 2}
+# Model 5:  SARIMA
+SARIMA_scores <- accuracy(SARIMA_for$mean,ts_DailyAvgLoad_test)
+
+# Model 6: Neural Network with P = 2
+
+NN_P2_scores <- accuracy(NN_for_P2$mean,ts_DailyAvgLoad_test)
+
+scores <-  rbind(scores,SARIMA_scores,NN_P2_scores)
+row.names(scores) <- c("STL+ETS", "ARIMA+Fourier","TBATS","NN","SARIMA","NNP2")
+```
+
+
+```{r table 2, echo=FALSE, message=FALSE, warning=FALSE}
+#generating table to compare
+kbl(scores, 
+      caption = "Forecast Accuracy for Daily Average Load",
+      digits = array(5,ncol(scores))) %>%
+  kable_styling(full_width = FALSE, position = "center", latex_options = "hold_position") %>%
+  #highlight model with lowest RMSE
+  kable_styling(latex_options="striped", stripe_index = which.min(scores[,"RMSE"]))
+```
+
+As indicated by higher MAPE and RMSE, the Neural Network with P=2 seems to be a worse fit than P=0.
+
+#Averaging forecast from Neural Network & TBATS (Model 7)
+
+```{r avg}
+#Create dates vector for forecast period
+forecast_dates <- seq(as.Date("2011-01-01"), as.Date("2011-01-31"), by="days")
+
+#Create df of average forecasted TBATS and NN load values
+TBATS_NN_avg_for <- data.frame(cbind(forecast_dates,rowMeans(cbind(TBATS11_for$mean,NN11_for$mean))))
+colnames(TBATS_NN_avg_for) <- c("date","load")
+
+#format dates
+TBATS_NN_avg_for$date <- seq(as.Date("2011-01-01"), as.Date("2011-01-31"), by="days")
+
+#write.csv(TBATS_NN_avg_for, file="./Outputs/TBATS_NN_avg_forecast.csv")
+
+```
+
+
+
